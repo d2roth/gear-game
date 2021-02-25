@@ -344,10 +344,10 @@
         ctx.fill()
         // ctx.stroke()
         if( init ){
-          if( !cogs[x] )
-            cogs[x] = [];
-          if( !cogs[x][y] )
-            cogs[x][y] = [];
+          if( !cogs[y] )
+            cogs[y] = [];
+          if( !cogs[y][x] )
+            cogs[y][x] = {};
 
           let obj = {
             x: x,
@@ -358,9 +358,42 @@
             height: size,
             centerX: left + (size/2),
             centerY: top + (size/2),
+            edges: [],
+            index: pegs.length,
           };
-          cogs[x][y].push(obj);
+          cogs[y][x] = obj;
           pegs.push(obj);
+
+          // Up left
+          if( cogs[y-1] && cogs[y-1][x-1] ){
+            // Add to remote
+            pegs[cogs[y-1][x-1].index].edges.push(obj);
+
+            // Add locally
+            obj.edges.push(cogs[y-1][x-1]);
+          }
+
+          // Up right
+          if( cogs[y-1] && cogs[y-1][x] ){
+            // Add to remote
+            pegs[cogs[y-1][x].index].edges.push(obj);
+
+            // Add locally
+            obj.edges.push(cogs[y-1][x]);
+          }
+
+          // Left
+          if( cogs[y] && cogs[y][x-1] ){
+            // Add to remote
+            pegs[cogs[y][x-1].index].edges.push(obj);
+
+            // Add locally
+            obj.edges.push(cogs[y][x-1]);
+          }
+
+          // previous row same column = up right
+          // same row previous column
+          // console.log( pegs );
         }
       }
     }
