@@ -17,9 +17,11 @@
       'cogs': 15,
     },
   ];
+
   function startingTeam(){
     return Math.floor(Math.random() * teams.length);
   }
+
   let team = startingTeam();
   let moving = false;
 
@@ -126,7 +128,7 @@
       ctx.fillStyle = team.fillStyle;
       let pegsOnBoard = pegs.filter(c => c.team === i).length;
       let cogsLeft = team.cogs - pegsOnBoard;
-      console.log( team.cogs, pegsOnBoard, team );
+      // console.log( team.cogs, pegsOnBoard, team );
       ctx.fillText(`${team.name} has ${cogsLeft} left`, 100, 100+(i*50)); 
     })
 
@@ -137,7 +139,6 @@
     let x = peg.centerX;
     let y = peg.centerY;
     let occupied = peg.occupied;
-    console.log( x, y, color, occupied );
 
     // console.log( 'drawing ' + color + ' cog' );
     // Draw the cogs
