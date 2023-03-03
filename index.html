@@ -2,28 +2,159 @@
 <html>
 <head>
   <title>Gear Game</title>
-  <link href="data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQEAYAAABPYyMiAAAABmJLR0T///////8JWPfcAAAACXBIWXMAAABIAAAASABGyWs+AAAAF0lEQVRIx2NgGAWjYBSMglEwCkbBSAcACBAAAeaR9cIAAAAASUVORK5CYII=" rel="icon" type="image/x-icon" />
-  <meta charset="UTF-8">
-  <style>
-    body {
-      background: #111;
-      color: #f8f8f8;
-    }
-    canvas {
-      background: orange;
-      padding: 0;
-      margin: 0 auto;
-      margin-bottom: 1rem;
-      display: block;
-    }
-  </style>
+  <script src="./node_modules/pixi.js/dist/pixi.js"></script>
 </head>
 <body>
-  <canvas id="gameBoard" width="1000" height="600"></canvas>
-  <!-- <script src="logic2.js"></script> -->
-  <script src="logic3.js"></script>
-  <button onclick="start()">Start</button>
-  <button onclick="start(500)">Start(500)</button>
-  <button onclick="stop()">Stop</button>
+<script>
+
+  function placePiece(event){
+    console.log( event );
+    sprite.scale.x *= 1.25;
+    sprite.scale.y *= 1.25;
+  }
+
+  let app = new PIXI.Application({ width: 640, height: 360 });
+  document.body.appendChild(app.view);
+
+  let notches = 8,                      // num. of notches
+    radiusO   = 60,                     // outer radius
+    radiusI   = 35,                     // inner radius
+    taperO    = 50,                     // outer taper %
+    taperI    = 35,                     // inner taper %
+
+    // pre-calculate values for loop
+    pi2     = 2 * Math.PI,            // cache 2xPI (360deg)
+    angle   = pi2 / (notches * 2),    // angle between notches
+    taperAI = angle * taperI * 0.005, // inner taper offset (100% = half notch)
+    taperAO = angle * taperO * 0.005; // outer taper offset
+
+  function buildCog(cx, cy){
+    let points = [];
+    let cog = new PIXI.Graphics();
+    let a      = angle,
+        toggle = false;
+    // cog.beginFill(Math.floor(Math.random()*16777215).toString(16));
+    cog.lineStyle(1, 0xFF0000);
+    // cog.beginFill(0xFF0000);
+
+    // loop
+    for (; a <= pi2; a += angle) {
+        // draw inner to outer line
+        if (toggle) {
+            points.push(cx + radiusI * Math.cos(a - taperAI));
+            points.push(cy + radiusI * Math.sin(a - taperAI));
+            points.push(cx + radiusO * Math.cos(a + taperAO));
+            points.push(cy + radiusO * Math.sin(a + taperAO));
+        }
+
+        // draw outer to inner line
+        else {
+            points.push(cx + radiusO * Math.cos(a - taperAO));
+            points.push(cy + radiusO * Math.sin(a - taperAO));
+            points.push(cx + radiusI * Math.cos(a + taperAI));
+            points.push(cy + radiusI * Math.sin(a + taperAI));
+        }
+
+        // switch level
+        toggle = !toggle;
+    }
+
+    // Draw one more line to close the final line
+    if (toggle) {
+        points.push(cx + radiusI * Math.cos(a - taperAI));
+        points.push(cy + radiusI * Math.sin(a - taperAI));
+        points.push(cx + radiusO * Math.cos(a + taperAO));
+        points.push(cy + radiusO * Math.sin(a + taperAO));
+    }
+
+    // draw outer to inner line
+    else {
+        points.push(cx + radiusO * Math.cos(a - taperAO));
+        points.push(cy + radiusO * Math.sin(a - taperAO));
+        points.push(cx + radiusI * Math.cos(a + taperAI));
+        points.push(cy + radiusI * Math.sin(a + taperAI));
+    }
+
+    cog.drawPolygon(points);
+    cog.pivot.x = cx;
+    cog.pivot.y = cy;
+
+    cog.x = cx;
+    cog.y = cy;
+    return cog;
+  }
+
+  // Author: user1693593
+  // Source: https://stackoverflow.com/a/23532468
+  
+  let rows = 5;
+  let size = radiusI/2;
+  let offset = radiusO*1.5;
+  let board = new PIXI.Graphics();
+      board.beginFill(0xFFFFFF).lineStyle(1, 0xFF0000);
+  let centerX = app.view.width/2,
+      centerY = offset;
+
+  let pegs = [];
+  for( row = 0; row <= rows; row++ ){
+    let firstPosition = centerX - (row * offset/2);
+    for( column = 0; column <= row; column++){
+      let bx = firstPosition + (column * offset);
+      let by = centerY + ( row * offset );
+      board.drawCircle(bx, by, size);
+      pegs.push({x:bx, y:by});
+    }
+  }
+
+  app.stage.addChild(board);
+
+  let cogs = [];
+  for( i = 0; i< 2; i++){
+    let cx = (radiusO*2 - radiusI/2)*i;
+    let cy = radiusO;
+    cx = pegs[i].x;
+    cy = pegs[i].y;
+    // Get the diameter and then subtract the difference for the inner radius
+    let c = buildCog(cx,cy);
+    cogs.push(c);
+    app.stage.addChild(c);
+  }
+  // // Add interactivity
+  // sprite.interactive = true;
+  // sprite.cursor = "pointer";
+  // sprite.buttonMode = true;
+  // sprite.on('pointerdown', (event) => {
+  //   console.log( "You pointerdown'ed me")
+  //   placePiece(event)
+  // });
+
+
+  let elapsed = 0.0;
+  // app.stage.pivot.x = app.stage.width / 2;
+  // app.stage.pivot.y = app.stage.height / 2;
+
+  // sprite.anchor.set(0.5);
+
+// Find out what interactive object lies at [100, 50]
+// let globalPt = new PIXI.Point(100,50);
+// let obj = app.renderer.plugins.interaction.hitTest(globalPt);
+
+  let speed = 0.03;
+  app.ticker.add( (delta) => {
+    elapsed += delta;
+    
+    let direction = false;
+    cogs.forEach(cog => {
+      if( direction )
+        cog.rotation += speed * delta;
+      else
+        cog.rotation -= speed * delta;
+      direction = !direction;
+    })
+    // sprite.x = 100.0 + Math.cos( elapsed/50.0 ) * 100.0;
+    // cog1.rotation -= 0.01 * delta;
+    // cog2.rotation += 0.01 * delta;
+  })
+</script>
 </body>
 </html>
