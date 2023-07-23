@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Version 2</title>
+  <style>
+    #tree {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background-color: #0f0f0f;
+    }
+
+    .node {
+      position: absolute;
+      background-color: orange;
+    }
+
+    .node.start {
+      background-color: green;
+    }
+
+    .node.connected {
+      border: 1px solid blue;
+    }
+
+    .node.end {
+      background-color: red !important;
+    }
+
+  </style>
+</head>
+<body>
+<div id="tree"></div>
+<script type="text/javascript">
+  let tree = new Map();
+  let treeEl = document.querySelector(`#tree`);
+
+  function buildTree( size ){
+    const debug = false;
+    debug && console.group(`Building a tree of size: ${size}`);
+    let total = 0;
+    for( posY = 0; posY < size; posY++ ){
+      for( posX = 0; posX <= posY; posX++ ){
+        debug && console.log( {posX, posY} );
+        total++;
+        tree.set([posX,posY], total);
+      }
+    }
+
+    debug && console.log( `The total count was: ${total}`)
+    debug && console.groupEnd();
+  }
+
+  function displayTreeNode( x, y, status ){
+    let d = document.createElement("div");
+    d.classList.add('node');
+    d.innerText  = `{${x},${y}}`;
+    d.style.left = x * 100 + "px";
+    d.style.top  = y * 100 + "px";
+    d.id = `${x}-${y}`;
+    treeEl.appendChild(d);
+  }
+
+  function displayTreeMap( map ){
+    const debug = true;
+    debug && console.log( map );
+
+    map.forEach( ( value, key ) => {
+      displayTreeNode(key[0], key[1]);
+    });
+  }
+
+  // buildTree(1);
+  // buildTree(5);
+  function findConnected(x, y, start){
+    const debug = true;
+    debug && console.log( x, y );
+    
+    let status = start ? "start" : "connected";
+
+    document.querySelector(`#${x}-${y}`).classList.add(status);
+    findConnected(newX, newY, false);
+  }
+
+  // Adding all of the potential nodes
+  buildTree(3);
+
+  findConnected(0,1, true);
+  displayTreeMap(tree);
+</script>
+</body>
+</html>
