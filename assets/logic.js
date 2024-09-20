@@ -10,67 +10,92 @@ let nodes = {};
 //   [2,7],
 //   [3,5],
 // ];
-let board = [
-  [[1,1],[1,2]],
-  [[1,2],[2,2]],
-  [[2,2],[2,3]]
-];
 // let board = [
-//   ['a','b'],
-//   ['b','c'],
-//   ['c','a'],
-//   ['a','d']
+//   [[1,1],[1,2]],
+//   [[1,2],[2,2]],
+//   [[2,2],[2,3]],
+//   [[5,5],[1,1]],
 // ];
+let board = [
+  ['a','b'],
+  ['b','c'],
+  ['c','a'],
+  ['a','d']
+];
 
 let map = new Map();
 let paths = new Map();
 
 board.forEach(item => {
-  let [x, y] = item;
-  // console.group(`Handling the item: [${item.join(",")}]`);
-  // console.log( x, y, item )
-
-  if( typeof x !== "string" )
-   x = JSON.stringify(x);
+  let [xKey, yKey] = item;
   
-  if( typeof y !== "string" )
-   y = JSON.stringify(y);
-  
-  if( map.has(x) ){
-    // console.log( `Map has x so adding y to it`)
-    map.get(x).push(y)
-  } else {
-    // console.log( `Map doesn't have x so adding ${y} to ${x}`)
-    map.set(x, [y])
+  x = {
+    key: typeof xKey === "string" ? xKey : JSON.stringify(xKey),
+    visited: false,
   }
-  if( map.has(y) ) {
-    // console.log( `Map has y so adding x to it`)
-    map.get(y).push(x);
-  } else {
-    // console.log( `Map doesn't have y so adding ${x} to ${y}`)
-    map.set(y, [x])
+  y = {
+    key: typeof yKey === "string" ? yKey : JSON.stringify(yKey),
+    visited: false,
   }
-
-  // console.groupEnd();
+  map.has(x.key) ? map.get(x.key).push(y) : map.set(x.key, [y])
+  map.has(y.key) ? map.get(y.key).push(x) : map.set(y.key, [x])
 })
+
 // console.log( map );
 let touched = new Map();
 
-map.forEach( (edges, startKey ) => {
-  // console.group(`Working through ${startKey}`)
+function walkTree( startKey, tree, visits ){
+  if( tree.get(startKey).visited )
+    console.log( `Already visited ${startKey}` )
 
-  edges.forEach( edge => {
-    // console.group( `Working on edge ${edge}` );
-    if( touched.has(startKey) ){
-      // console.log( `We already touched edge: ${edge}`)
-      touched.get(startKey).push(edge);
-    } else {
-      // console.log( `We haven't touched edge: ${edge}`)
-      touched.set(startKey, [edge]);
+  console.group(`Given the startKey of ${startKey} we are walking through...`)
+  visits.push(startKey)
+
+  // Mark this node as visited
+  tree.get(startKey).visited = true;
+  tree.get(startKey).edges = [];
+  tree.get(startKey).map( edge => {
+    // If the last node is the same as this edge skip
+    if( visits.at(-2) == edge.key )
+      return;
+
+    console.group(`Working on edge ${edge.key} from ${Array.from(tree.get(startKey)).length} possibilities on the path ${visits.join("=>")}`)
+
+    if( tree.get(edge.key).visited ){
+      console.log( `We already visited ${edge.key}` );
+      visits.push(edge.key);
     }
-    // console.groupEnd();
+
+    // If we don't have this edge or it hasn't been visited then walk through
+    if( visits.indexOf(edge.key) === -1 || !tree.get(edge.key).visited ){
+      walkTree(edge.key, tree, visits)
+    } else {
+      tree.get(edge.key).edges.push(visits)
+      visits = [];
+    }
+
+    console.groupEnd();
   })
-  // console.groupEnd();
+  console.log( `Now our visits looks like ${visits.join("->")}` );
+  console.groupEnd();
+}
+
+map.forEach( (edges, startKey ) => {
+  console.group(`Starting the map with the edge: ${startKey}`)
+
+  walkTree(startKey, map, [] );
+  // edges.forEach( edge => {
+  //   // console.group( `Working on edge ${edge}` );
+  //   if( touched.has(startKey) ){
+  //     // console.log( `We already touched edge: ${edge}`)
+  //     touched.get(startKey).push(edge);
+  //   } else {
+  //     // console.log( `We haven't touched edge: ${edge}`)
+  //     touched.set(startKey, [edge]);
+  //   }
+  //   // console.groupEnd();
+  // })
+  console.groupEnd();
 });
 
 // function loopThrough( key, chains = new Map ){
@@ -98,10 +123,11 @@ touched.forEach( (edges, self) => {
   let chain = [];
   let item = self;
   let i = 0;
+  console.group(`Processing`)
   while (item && chain.length < 10 && i < 10){
-
+    console.log( `Current Item: ${item}` )
     if( chain.indexOf( item ) === -1 ){
-      console.log( `${chain.join("...")} does not contain ${item}`)
+      console.log( `{${chain.join("...")}} does not contain ${item}`)
       chain.push(item);
     }
 
@@ -110,6 +136,7 @@ touched.forEach( (edges, self) => {
 
     i++;
   }
+  console.groupEnd();
   console.log( `That now gives us a chain with ${chain.join("->")}`);
 
   // Go through the edges of self and find what else we touch
@@ -179,3 +206,19 @@ console.log( touched );
 
 // console.log( map );
 
+
+map.forEach( (children, parent) => {
+  console.log(parent, children);
+  let wrapper = document.createElement('ul');
+  let content = "";
+  content += `<li>${parent}<ul>`;
+
+  children.forEach(child => {
+    content += `<li>${child.key}</li>`;
+  });
+
+  content += `</ul></li>`;
+  wrapper.innerHTML = content;
+
+  tree.append(wrapper);
+})
