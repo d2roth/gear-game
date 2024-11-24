@@ -87,15 +87,11 @@
     <div id="board"></div>
 
     <script>
-        const board = document.querySelector(`#board`);
-        const gearMap = new Map();
-        const adjacencyMap = buildAdjacencyMap(5);
-
         class Player {
             name = "unknown";
             color = "green";
 
-            constructor(name, color){
+            constructor(name, color) {
                 this.name = name;
                 this.color = color;
             }
@@ -113,31 +109,170 @@
             players;
             size;
             #currentPlayerIndex = 0;
+            #gearMap = new Map();
+            #adjacencyMap = [];
+            #board = null;
 
-            constructor(options){
+            constructor(options) {
                 this.players = options.players || [new Team('Player 1', 'red')];
                 this.size = options.size || 5;
+
+                this.#board = document.querySelector(`#board`);
+                this.#adjacencyMap = this.buildAdjacencyMap(5);
             }
 
-            getPlayers(){
+            getPlayers() {
                 return this.players;
             }
 
-            currentPlayer(){
+            currentPlayer() {
                 return this.players[this.#currentPlayerIndex];
             }
-            
-            nextPlayer(){
+
+            nextPlayer() {
                 // If the next player doesn't exist reset the loop
-                if( !this.players[this.#currentPlayerIndex++] ){
+                if (!this.players[this.#currentPlayerIndex++]) {
                     this.#currentPlayerIndex = 0;
                 }
 
                 return this.players[this.#currentPlayerIndex];
             }
+
+            hasGear(index) {
+                return this.#gearMap.has(index);
+            }
+
+            startGear(index, clockwise) {
+                const peg = this.getPeg(index);
+                peg.classList.remove("clockwise", "counter-clockwise");
+                peg.classList.add(clockwise ? "clockwise" : "counter-clockwise", 'populated');
+
+                // Now update the map
+                this.#gearMap.set(index, clockwise);
+            }
+
+            stopGear(index) {
+                const peg = this.getPeg(index);
+                peg.classList.remove("clockwise", "counter-clockwise");
+                this.#gearMap.set(index, null);
+            }
+
+            getPeg(index) {
+                return this.#board.querySelector(`[data-index="${index}"]`) || false;
+            }
+
+            toggleGear(peg, index) {
+                index = index * 1;
+                let clockwise = true; // swapped later if we have an adjacent gear
+                if (this.hasGear(index)) {
+                    this.removeGear(index);
+                } else {
+                    let neighbors = this.getNeighborGears(index);
+                    if (this.hasGear(neighbors[0])) {
+                        clockwise = !this.getPeg(neighbors[0]).classList.contains('clockwise');
+                    }
+                    this.startGear(index, clockwise);
+                }
+                this.rotateFromIndex(index);
+            }
+
+            removeGear(index) {
+                this.stopGear(index);
+                this.#gearMap.delete(index);
+                this.getPeg(index).classList.remove('populated');
+
+                for (const neighborIndex of this.getNeighborGears(index)) {
+                    console.log(`Rotating from ${neighborIndex}`)
+                    this.rotateFromIndex(neighborIndex);
+                }
+            }
+
+            getNeighborGears(index) {
+                return this.#adjacencyMap[index].filter(i => this.hasGear(i));
+            }
+
+            rotateFromIndex(index, clockwise = null, visitedPath = new Map()) {
+                if (!this.hasGear(index)) {
+                    console.log(`No gear on ${index}. Skipping...`)
+                    return true;
+                }
+                const neighbors = this.getNeighborGears(index);
+                console.log(`We are starting on ${index} and rotating ${clockwise === null ? "stuck" : (clockwise ? "clockwise" : "counter-clockwise")}. We have visited ${visitedPath.size} items so far. Our neighbours are: ${neighbors.join(' -> ')}`);
+
+                if (clockwise === null) {
+                    // If we are rotating clockwise or not counterclockwise then start clockwise
+                    clockwise = this.getPeg(index).classList.contains('clockwise') || !this.getPeg(index).classList.contains('counter-clockwise');
+                }
+
+                // If we already visited this gear check if it is turning the new intended way
+                // This allows a gear to continue to turn if it has been hit from multiple angles but none contradict its current path
+                if (visitedPath.has(index)) {
+                    return visitedPath.get(index) === clockwise;
+                }
+
+                // Since we haven't visited this path track its direction in this update
+                visitedPath.set(index, clockwise);
+                this.startGear(index, clockwise);
+
+                let canTurn = true;
+                for (const neighborIndex of neighbors) {
+                    canTurn = canTurn && this.rotateFromIndex(neighborIndex, !clockwise, visitedPath);
+                }
+
+                if (!canTurn) {
+                    this.stopNeighbors(index);
+                }
+
+                console.table(visitedPath);
+
+                return canTurn;
+            }
+
+            stopNeighbors(index, visitedPath = new Map()) {
+                if (visitedPath.has(index))
+                    return;
+
+                this.stopGear(index);
+                visitedPath.set(index, true);
+                this.getNeighborGears(index).forEach(neighborIndex => {
+                    this.stopNeighbors(neighborIndex, visitedPath);
+                })
+            }
+
+            buildAdjacencyMap(size) {
+                let index = 0;
+                let map = [];
+                let grid = [];
+                for (let row = 0; row <= size; row++) {
+                    let cols = [];
+                    let rowNode = document.createElement('div');
+                    rowNode.classList.add('row');
+
+                    for (let col = 0; col < row; col++) {
+                        cols.push(index);
+
+                        let pegNode = document.createElement('div');
+                        pegNode.classList.add('peg');
+                        pegNode.dataset.index = index;
+                        pegNode.innerHTML = index;
+                        rowNode.append(pegNode);
+
+                        if (cols[col - 1] !== undefined)
+                            addEdge(map, index, cols[col - 1]);
+                        if (grid[row - 1] && grid[row - 1][col - 1] != undefined)
+                            addEdge(map, index, grid[row - 1][col - 1]);
+                        if (grid[row - 1] && grid[row - 1][col] != undefined)
+                            addEdge(map, index, grid[row - 1][col]);
+
+                        index++;
+                    }
+                    grid.push(cols);
+                    this.#board.appendChild(rowNode);
+                }
+                return map;
+            }
         }
 
-        
         const game = new Game({
             players: [
                 new Player("Red", 'red'),
@@ -145,18 +280,11 @@
             size: 5,
         });
 
-        function getPeg(index) {
-            return board.querySelector(`.peg[data-index="${index}"]`) || false;
-        }
-
-        function hasGear(index) {
-            return gearMap.has(index);
-        }
 
         board.addEventListener('click', (e) => {
             if (e.target.classList.contains('peg')) {
                 console.group(`Player ${game.currentPlayer().name} clicked on ${e.target.dataset.index}`)
-                toggleGear(e.target, e.target.dataset.index);
+                game.toggleGear(e.target, e.target.dataset.index);
                 console.groupEnd();
             }
         });
@@ -171,135 +299,6 @@
 
             map[a].push(b);
             map[b].push(a);
-        }
-        function buildAdjacencyMap(size) {
-            let index = 0;
-            let map = [];
-            let grid = [];
-            for (let row = 0; row <= size; row++) {
-                let cols = [];
-                let rowNode = document.createElement('div');
-                rowNode.classList.add('row');
-
-                for (let col = 0; col < row; col++) {
-                    cols.push(index);
-
-                    let pegNode = document.createElement('div');
-                    pegNode.classList.add('peg');
-                    pegNode.dataset.index = index;
-                    pegNode.innerHTML = index;
-                    rowNode.append(pegNode);
-
-                    if (cols[col - 1] !== undefined)
-                        addEdge(map, index, cols[col - 1]);
-                    if (grid[row - 1] && grid[row - 1][col - 1] != undefined)
-                        addEdge(map, index, grid[row - 1][col - 1]);
-                    if (grid[row - 1] && grid[row - 1][col] != undefined)
-                        addEdge(map, index, grid[row - 1][col]);
-
-                    index++;
-                }
-                grid.push(cols);
-                board.appendChild(rowNode);
-            }
-            return map;
-        }
-
-        function getPeg(index) {
-            return board.querySelector(`[data-index="${index}"]`);
-        }
-
-        function toggleGear(peg, index) {
-            index = index * 1;
-            let clockwise = true; // swapped later if we have an adjacent gear
-            if (hasGear(index)) {
-                removeGear(index);
-            } else {
-                const neighbors = adjacencyMap[index].filter(index => hasGear(index));
-                if (hasGear(neighbors[0])) {
-                    clockwise = !getPeg(neighbors[0]).classList.contains('clockwise');
-                }
-                startGear(index, clockwise);
-            }
-            rotateFromIndex(index);
-        }
-
-        function startGear(index, clockwise) {
-            const peg = getPeg(index);
-            peg.classList.remove("clockwise", "counter-clockwise");
-            peg.classList.add(clockwise ? "clockwise" : "counter-clockwise", 'populated');
-
-            // Now update the map
-            gearMap.set(index, clockwise);
-        }
-
-        function stopGear(index) {
-            const peg = getPeg(index);
-            peg.classList.remove("clockwise", "counter-clockwise");
-            gearMap.set(index, null);
-        }
-
-        function removeGear(index) {
-            stopGear(index);
-            gearMap.delete(index);
-            getPeg(index).classList.remove('populated');
-
-            const neighbors = adjacencyMap[index].filter(index => hasGear(index));
-
-            for (const neighborIndex of neighbors) {
-                console.log(`Rotating from ${neighbors[0]}`)
-                rotateFromIndex(neighborIndex);
-            }
-        }
-
-        function rotateFromIndex(index, clockwise = null, visitedPath = new Map()) {
-            if (!hasGear(index)) {
-                console.log(`No gear on ${index}. Skipping...`)
-                return true;
-            }
-            const neighbors = adjacencyMap[index].filter(i => hasGear(i));
-            console.log(`We are starting on ${index} and rotating ${clockwise === null ? "stuck" : (clockwise ? "clockwise" : "counter-clockwise")}. We have visited ${visitedPath.size} items so far. Our neighbours are: ${neighbors.join(' -> ')}`);
-
-            if (clockwise === null) {
-                // If we are rotating clockwise or not counterclockwise then start clockwise
-                clockwise = getPeg(index).classList.contains('clockwise') || !getPeg(index).classList.contains('counter-clockwise');
-            }
-
-            // If we already visited this gear check if it is turning the new intended way
-            // This allows a gear to continue to turn if it has been hit from multiple angles but none contradict its current path
-            if (visitedPath.has(index)) {
-                return visitedPath.get(index) === clockwise;
-            }
-
-            // Since we haven't visited this path track its direction in this update
-            visitedPath.set(index, clockwise);
-            startGear(index, clockwise);
-
-            let canTurn = true;
-            for (const neighborIndex of neighbors) {
-                canTurn = canTurn && rotateFromIndex(neighborIndex, !clockwise, visitedPath);
-            }
-
-            if (!canTurn) {
-                stopNeighbors(index);
-            }
-
-            console.table(visitedPath);
-
-            return canTurn;
-        }
-
-        function stopNeighbors(index, visitedPath = new Map()) {
-            if (visitedPath.has(index))
-                return;
-
-            stopGear(index);
-
-            const neighbors = adjacencyMap[index].filter(index => hasGear(index));
-            visitedPath.set(index, true);
-            neighbors.forEach(neighborIndex => {
-                stopNeighbors(neighborIndex, visitedPath);
-            })
         }
 
     </script>
