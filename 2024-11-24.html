@@ -19,12 +19,12 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 20px;
+            gap: 17px;
         }
 
         .row {
             display: flex;
-            gap: 20px;
+            gap: 25px;
         }
 
         .peg {
@@ -41,12 +41,17 @@
 
         .peg::before {
             opacity: .5;
-            content: '⚙️';
+            /* content: '⚙️'; */
+            content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1.1, -1.1, 2.2, 2.2'%3E%3Cstyle%3Epath%7Bfill: currentColor;%7D%3C/style%3E%3Cpath d='M0,-1A1,1,0,0,1,0.113,-0.994L0.207,-0.77A0.800,0.800,0,0,1,0.400,-0.69L0.623,-0.783A1,1,0,0,1,0.707,-0.707A1,1,0,0,1,0.783,-0.623L0.693,-0.40A0.800,0.800,0,0,1,0.773,-0.20L0.994,-0.113A1,1,0,0,1,1.000,0A1,1,0,0,1,0.994,0.11L0.773,0.200A0.800,0.800,0,0,1,0.693,0.400L0.783,0.62A1,1,0,0,1,0.707,0.7A1,1,0,0,1,0.623,0.78L0.400,0.688A0.800,0.800,0,0,1,0.207,0.768L0.113,0.99A1,1,0,0,1,0.000,1A1,1,0,0,1,-0.11,0.99L-0.20,0.768A0.800,0.800,0,0,1,-0.40,0.688L-0.62,0.78A1,1,0,0,1,-0.70,0.7A1,1,0,0,1,-0.78,0.62L-0.68,0.400A0.800,0.800,0,0,1,-0.76,0.200L-0.99,0.11A1,1,0,0,1,-1.00,0A1,1,0,0,1,-0.99,-0.113L-0.76,-0.20A0.800,0.800,0,0,1,-0.68,-0.40L-0.78,-0.623A1,1,0,0,1,-0.70,-0.707A1,1,0,0,1,-0.62,-0.783L-0.40,-0.69A0.800,0.800,0,0,1,-0.20,-0.77L-0.11,-0.994A1,1,0,0,1,-0.00,-1L0,-0.3A0.3,0.3,0,1,0,0,0.3A0.3,0.3,0,1,0,0,-0.3Z'%3E%3C/path%3E%3C/svg%3E");
+            width: 80px;
+            aspect-ratio: 1/1;
+            font-size: 0;
             position: absolute;
             display: none;
             animation-duration: 4000ms;
             animation-iteration-count: infinite;
             animation-timing-function: linear;
+            color: orange;
         }
 
         .clockwise::before {
@@ -73,7 +78,7 @@
 
         @keyframes spin-counter-clockwise {
             from {
-                transform: rotate(0deg);
+                transform: rotate(5deg);
             }
 
             to {
@@ -108,17 +113,17 @@
         class Game {
             players;
             size;
-            #currentPlayerIndex = 0;
+            #currentPlayerKey = 0;
             #gearMap = new Map();
-            #adjacencyMap = [];
             #board = null;
+            #pegs = new Map();
 
             constructor(options) {
                 this.players = options.players || [new Team('Player 1', 'red')];
-                this.size = options.size || 5;
+                this.size = options.size || 8;
 
                 this.#board = document.querySelector(`#board`);
-                this.#adjacencyMap = this.buildAdjacencyMap(5);
+                this.buildAdjacencyMap(this.size);
             }
 
             getPlayers() {
@@ -126,117 +131,26 @@
             }
 
             currentPlayer() {
-                return this.players[this.#currentPlayerIndex];
+                return this.players[this.#currentPlayerKey];
             }
 
             nextPlayer() {
                 // If the next player doesn't exist reset the loop
-                if (!this.players[this.#currentPlayerIndex++]) {
-                    this.#currentPlayerIndex = 0;
+                if (!this.players[this.#currentPlayerKey++]) {
+                    this.#currentPlayerKey = 0;
                 }
 
-                return this.players[this.#currentPlayerIndex];
+                return this.players[this.#currentPlayerKey];
             }
 
-            hasGear(index) {
-                return this.#gearMap.has(index);
+            play(key) {
+                console.log(key, this.#pegs);
+
+                this.#pegs.get(key).toggleGear();
             }
 
-            startGear(index, clockwise) {
-                const peg = this.getPeg(index);
-                peg.classList.remove("clockwise", "counter-clockwise");
-                peg.classList.add(clockwise ? "clockwise" : "counter-clockwise", 'populated');
-
-                // Now update the map
-                this.#gearMap.set(index, clockwise);
-            }
-
-            stopGear(index) {
-                const peg = this.getPeg(index);
-                peg.classList.remove("clockwise", "counter-clockwise");
-                this.#gearMap.set(index, null);
-            }
-
-            getPeg(index) {
-                return this.#board.querySelector(`[data-index="${index}"]`) || false;
-            }
-
-            toggleGear(peg, index) {
-                index = index * 1;
-                let clockwise = true; // swapped later if we have an adjacent gear
-                if (this.hasGear(index)) {
-                    this.removeGear(index);
-                } else {
-                    let neighbors = this.getNeighborGears(index);
-                    if (this.hasGear(neighbors[0])) {
-                        clockwise = !this.getPeg(neighbors[0]).classList.contains('clockwise');
-                    }
-                    this.startGear(index, clockwise);
-                }
-                this.rotateFromIndex(index);
-            }
-
-            removeGear(index) {
-                this.stopGear(index);
-                this.#gearMap.delete(index);
-                this.getPeg(index).classList.remove('populated');
-
-                for (const neighborIndex of this.getNeighborGears(index)) {
-                    console.log(`Rotating from ${neighborIndex}`)
-                    this.rotateFromIndex(neighborIndex);
-                }
-            }
-
-            getNeighborGears(index) {
-                return this.#adjacencyMap[index].filter(i => this.hasGear(i));
-            }
-
-            rotateFromIndex(index, clockwise = null, visitedPath = new Map()) {
-                if (!this.hasGear(index)) {
-                    console.log(`No gear on ${index}. Skipping...`)
-                    return true;
-                }
-                const neighbors = this.getNeighborGears(index);
-                console.log(`We are starting on ${index} and rotating ${clockwise === null ? "stuck" : (clockwise ? "clockwise" : "counter-clockwise")}. We have visited ${visitedPath.size} items so far. Our neighbours are: ${neighbors.join(' -> ')}`);
-
-                if (clockwise === null) {
-                    // If we are rotating clockwise or not counterclockwise then start clockwise
-                    clockwise = this.getPeg(index).classList.contains('clockwise') || !this.getPeg(index).classList.contains('counter-clockwise');
-                }
-
-                // If we already visited this gear check if it is turning the new intended way
-                // This allows a gear to continue to turn if it has been hit from multiple angles but none contradict its current path
-                if (visitedPath.has(index)) {
-                    return visitedPath.get(index) === clockwise;
-                }
-
-                // Since we haven't visited this path track its direction in this update
-                visitedPath.set(index, clockwise);
-                this.startGear(index, clockwise);
-
-                let canTurn = true;
-                for (const neighborIndex of neighbors) {
-                    canTurn = canTurn && this.rotateFromIndex(neighborIndex, !clockwise, visitedPath);
-                }
-
-                if (!canTurn) {
-                    this.stopNeighbors(index);
-                }
-
-                console.table(visitedPath);
-
-                return canTurn;
-            }
-
-            stopNeighbors(index, visitedPath = new Map()) {
-                if (visitedPath.has(index))
-                    return;
-
-                this.stopGear(index);
-                visitedPath.set(index, true);
-                this.getNeighborGears(index).forEach(neighborIndex => {
-                    this.stopNeighbors(neighborIndex, visitedPath);
-                })
+            getPeg(key) {
+                return this.#pegs.get(key);
             }
 
             buildAdjacencyMap(size) {
@@ -249,21 +163,24 @@
                     rowNode.classList.add('row');
 
                     for (let col = 0; col < row; col++) {
-                        cols.push(index);
+                        const peg = new Peg(index);
 
                         let pegNode = document.createElement('div');
                         pegNode.classList.add('peg');
-                        pegNode.dataset.index = index;
-                        pegNode.innerHTML = index;
+                        pegNode.dataset.key = peg.key;
+                        pegNode.innerHTML = peg.key;
                         rowNode.append(pegNode);
 
-                        if (cols[col - 1] !== undefined)
-                            addEdge(map, index, cols[col - 1]);
-                        if (grid[row - 1] && grid[row - 1][col - 1] != undefined)
-                            addEdge(map, index, grid[row - 1][col - 1]);
-                        if (grid[row - 1] && grid[row - 1][col] != undefined)
-                            addEdge(map, index, grid[row - 1][col]);
 
+                        if (cols[col - 1] !== undefined)
+                            peg.addAdjacent(cols[col - 1]);
+                        if (grid[row - 1] && grid[row - 1][col - 1] != undefined)
+                            peg.addAdjacent(grid[row - 1][col - 1]);
+                        if (grid[row - 1] && grid[row - 1][col] != undefined)
+                            peg.addAdjacent(grid[row - 1][col]);
+
+                        cols.push(peg);
+                        this.#pegs.set(peg.key, peg);
                         index++;
                     }
                     grid.push(cols);
@@ -273,33 +190,184 @@
             }
         }
 
+        class Gear {
+            team;
+            constructor(team) {
+                this.team = team;
+            }
+        }
+
+        class Peg {
+            #team = null;
+            key = null;
+            adjacent = new Map();
+            #gear = null;
+            #clockwise = null;
+
+            constructor(key) {
+                this.key = String.fromCharCode(65 + key);
+            }
+
+            get isOccupied() {
+                return this.#gear !== null;
+            }
+
+            set gear(gear) {
+                console.log(`Setting the gear on ${this.index}`)
+                this.#team = gear.team;
+                this.#gear = gear;
+            }
+
+            get gear() {
+                return this.#gear;
+            }
+
+            get clockwise() {
+                return this.#clockwise;
+            }
+
+            addAdjacent(peg) {
+                if (!this.adjacent.has(peg.key))
+                    this.adjacent.set(peg.key, peg);
+
+                if (!peg.adjacent.has(this.key))
+                    peg.adjacent.set(this.key, this);
+            }
+
+            element() {
+                return document.querySelector(`[data-key="${this.key.replace("\\", "\\\\")}"]`);
+            }
+
+            startGear(clockwise) {
+                const peg = this.element();
+                peg.classList.remove("clockwise", "counter-clockwise");
+                peg.classList.add(clockwise ? "clockwise" : "counter-clockwise", 'populated');
+
+                // Now update the map
+                this.#clockwise = clockwise;
+            }
+
+            stopGear() {
+                this.element().classList.remove("clockwise", "counter-clockwise");
+                this.#clockwise = null;
+            }
+
+            removeGear() {
+                console.log( `Removing gear from ${this.key}`)
+                this.stopGear();
+                this.#gear = null;
+                this.element().classList.remove('populated');
+
+                this.getNeighborGears().forEach(neighbor => {
+                    neighbor.rotateSublings();
+                });
+            }
+
+            toggleGear() {
+                let clockwise = true; // swapped later if we have an adjacent gear
+                // console.log( `Toggling gear: ${this.key}. It is ${this.isOccupied ?'occupied and ':''}turning ${this.clockwise===null?"stuck" : (this.clockwise?'clockwise':'counter-clockwise')}`)
+                if (this.isOccupied) {
+                    this.removeGear();
+                } else {
+                    let neighbors = this.getNeighborGears();
+                    if (neighbors[0] && neighbors[0].isOccupied) {
+                        clockwise = !neighbors[0].clockwise;
+                    }
+                    this.#gear = new Gear({
+                        team: 'red',
+                    });
+                    this.startGear(clockwise);
+                }
+                this.rotateSublings();
+            }
+
+            getNeighborGears() {
+                return new Map(
+                    [...this.adjacent].filter(([key, value]) => {
+                        return value.isOccupied === true;
+                    })
+                );
+            }
+
+            // TODO: Maybe remove the stopping gear itself and only stop neighbors
+            stopNeighbors(visitedPath = new Map()) {
+                if (visitedPath.has(this.key))
+                    return;
+
+                this.stopGear();
+                visitedPath.set(this.key, true);
+                this.getNeighborGears().forEach(neighborGear => {
+                    neighborGear.stopNeighbors(visitedPath);
+                })
+            }
+
+            rotateSublings(clockwise = null, visitedPath = new Map()) {
+                if (!this.isOccupied) {
+                    // console.log(`No gear on ${this.key}. Skipping...`)
+                    return true;
+                }
+                const neighbors = this.getNeighborGears();
+                // console.log(`We are starting on ${this.key} and rotating ${clockwise === null ? "stuck" : (clockwise ? "clockwise" : "counter-clockwise")}. We have visited [${Array.from(visitedPath.keys()).join('=>')}] so far. Our neighbours are: ${Array.from(neighbors.keys()).join(' -> ')}`);
+
+                if (clockwise === null) {
+                    const [firstNeighbor] = neighbors.values();
+                    if( firstNeighbor ){
+                        console.log( {firstNeighbor, key: firstNeighbor.key, clockwise: firstNeighbor.clockwise})
+                        clockwise = !firstNeighbor.clockwise;
+                    } else {
+                        clockwise = this.clockwise;
+                    }
+                    // clockwise = ( && !neighbors[0]./clockwise) || this.clockwise;
+                    // If we are rotating clockwise or not counterclockwise then start clockwise
+                    // clockwise = this.#clockwise;
+                }
+                // console.log( `We are turning: ${clockwise === null ? 'stuck' :( clockwise ?'clockwise':'counter-clockwise')}` );
+                // console.log({ key: this.key, visitedPath } );
+
+                // If we already visited this gear check if it is turning the new intended way
+                // This allows a gear to continue to turn if it has been hit from multiple angles but none contradict its current path
+                if (visitedPath.has(this.key)) {
+                    // console.log(`We already visited ${this.key}. It is turning ${visitedPath.get(this.key) === clockwise ? 'the same' : 'oposite'} the direction it should`);
+                    return visitedPath.get(this.key) === clockwise;
+                }
+
+                // Since we haven't visited this path track its direction in this update
+                visitedPath.set(this.key, clockwise);
+                this.startGear(clockwise);
+
+                let canTurn = true;
+                neighbors.values().forEach((neighborPeg) => {
+                    canTurn = canTurn && neighborPeg.rotateSublings(!clockwise, visitedPath);
+                })
+
+                if (!canTurn) {
+                    this.stopNeighbors();
+                }
+
+                // console.table(visitedPath);
+
+                return canTurn;
+            }
+
+        }
+
+
         const game = new Game({
             players: [
                 new Player("Red", 'red'),
             ],
-            size: 5,
+            size: 8,
         });
 
 
         board.addEventListener('click', (e) => {
             if (e.target.classList.contains('peg')) {
-                console.group(`Player ${game.currentPlayer().name} clicked on ${e.target.dataset.index}`)
-                game.toggleGear(e.target, e.target.dataset.index);
+                console.group(`Player ${game.currentPlayer().name} clicked on ${e.target.dataset.key}`)
+
+                game.play(e.target.dataset.key);
                 console.groupEnd();
             }
         });
-
-        function addEdge(map, a, b) {
-            if (a === undefined || b === undefined) {
-                return;
-            }
-
-            map[a] = map[a] || [];
-            map[b] = map[b] || [];
-
-            map[a].push(b);
-            map[b].push(a);
-        }
 
     </script>
 </body>
