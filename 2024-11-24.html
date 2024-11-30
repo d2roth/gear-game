@@ -91,15 +91,23 @@
     <div id="board"></div>
 
     <script>
+        function getPegKey(index) {
+            return String.fromCharCode(65 + index);
+        }
         class Player {
             name = "unknown";
             color = "green";
             pieces = 0;
+            basePegIndex;
+            basePeg;
 
             constructor(options = {}) {
                 this.name = options.name || "Unknown Player";
                 this.color = options.color || "orange";
-                this.pieces = options.pieces || 2;
+                this.pieces = options.pieces || 15;
+
+                if (options.basePegIndex)
+                    this.basePegIndex = options.basePegIndex;
             }
 
             get name() {
@@ -114,15 +122,15 @@
                 return this.pieces;
             }
 
-            decreasePiece(){
+            decreasePiece() {
                 this.pieces--;
             }
 
-            increasePiece(){
+            increasePiece() {
                 this.pieces++;
             }
 
-            hasPeice() {
+            hasPiece() {
                 return this.pieces > 0;
             }
         }
@@ -138,20 +146,25 @@
             #isMoving = false;
 
             constructor(options = {}) {
-                this.players = options.players || [
-                    new Player({
-                        name: 'Player 1',
-                        color: 'red'
-                    }),
-                    new Player({
-                        name: 'Player 2',
-                        color: 'blue'
-                    }),
-                ];
                 this.size = options.size || 8;
+                this.totalPegs = this.size * (this.size + 1) / 2;
 
                 this.#board = document.querySelector(`#board`);
                 this.buildAdjacencyMap(this.size);
+
+                // this.totalPegs = this.#pegs.size;
+                this.players = options.players || [
+                    new Player({
+                        name: 'Player 1',
+                        color: 'red',
+                        basePegIndex: this.totalPegs - this.size,
+                    }),
+                    new Player({
+                        name: 'Player 2',
+                        color: 'blue',
+                        basePegIndex: this.totalPegs - 1,
+                    }),
+                ];
                 this.placeInitialGears();
             }
 
@@ -174,46 +187,82 @@
             }
 
             play(key) {
+                console.groupCollapsed(`Play started on ${key}`)
                 let peg = this.getPeg(key);
                 const [canPlay, failReason] = this.canPlayerPlayInteractWithPeg(this.currentPlayer(), peg);
+                console.log(`This move is ${canPlay ? 'playable' : 'non-playable'}`)
+
                 if (canPlay) {
-                    if (peg.toggleGear(this.currentPlayer())) {
-                        if( !this.isMoving ){
+                    const [isLegal, illegalReason] = this.isMoveLegal(this.currentPlayer(), peg);
+
+                    console.log(`This move is ${isLegal ? 'legal' : 'illegal'}`)
+                    if (isLegal) {
+                        if (peg.toggleGear(this.currentPlayer())) {
                             this.currentPlayer().decreasePiece();
+                            this.advancePlayer();
+                            this.isMoving = false;
                         } else {
+                            this.isMoving = true;
                             this.currentPlayer().increasePiece();
                         }
-                        this.advancePlayer();
-                        this.isMoving = false;
                     } else {
-                        this.isMoving = true;
+                        alert(illegalReason);
                     }
                 } else {
                     alert(failReason);
                 }
 
                 this.drawPlayerStats();
+                console.groupEnd();
             }
 
             canPlayerPlayInteractWithPeg(player, peg) {
-                // Testing illegal corners
-                if( peg.protectedSibling && peg.protectedSibling.isOccupied && peg.protectedSibling.gear.player === player ){
-                    return [false, `You already occupy ${peg.protectedSibling.key} and can't occupy both ${peg.key}.`];
-                }
-
-                if( peg.isOccupied ){
-
-                    if( !peg.gear.isMovable ){
+                if (peg.isOccupied) {
+                    if (!peg.gear.isMovable) {
                         return [false, `${peg.key} cannot be moved.`];
                     }
 
-                    if( player !== peg.gear.player ) {
+                    if (player !== peg.gear.player) {
                         return [false, `That is ${peg.gear.player.name}'s piece.`];
                     }
                 }
 
-                if( !player.hasPeice() ){
+                if (!player.hasPiece() && peg.gear?.player !== player) {
                     return [false, `You have no more peices. You can only move existing pieces`];
+                }
+
+                // Testing illegal corners
+                if (peg.protectedSibling && peg.protectedSibling?.isOccupied && peg.protectedSibling.gear.player === player) {
+                    return [false, `You already occupy ${peg.protectedSibling.key} and can't occupy both ${peg.key}.`];
+                }
+
+                return [true];
+            }
+
+            isMoveLegal(player, peg) {
+                if (peg.isOccupied) {
+                    // Check if the base will turn after making this move
+                    if (!player.basePeg.isTurning) {
+                        const oldGear = peg.gear;
+                        peg.removeGear();
+                        if (player.basePeg.isTurning) {
+                            peg.gear = oldGear;
+                        } else {
+                            console.log('Play should fail due to line 248')
+                            return [false, `Your base peg doesn't turn.`];
+                        }
+                    }
+                } else {
+                    // Try adding the gear and seeing if the base continues to turn
+                    peg.gear = new Gear(player);
+                    peg.turnGear();
+                    console.log({ isTurning: peg.isTurning, clockwise: peg.clockwise, player, baseIsTurning: player.basePeg.isTurning });
+                    if (!player.basePeg.isTurning) {
+                        console.log('Play should fail due to line 256')
+                        return [false, `Your base peg will not be able to turn.`];
+                    } else {
+                        peg.removeGear();
+                    }
                 }
 
                 return [true];
@@ -222,7 +271,7 @@
             drawPlayerStats() {
                 let currentPlayer = this.currentPlayer();
                 console.table(currentPlayer);
-                console.log( this.players )
+                console.log(this.players)
             }
 
             getPeg(key) {
@@ -240,10 +289,6 @@
 
                     for (let col = 0; col < row; col++) {
                         const peg = new Peg(index);
-
-                        if( row == 2 && col > 0 ){
-                            peg.protectedSibling = cols[col-1];
-                        }
 
                         let pegNode = document.createElement('div');
                         pegNode.classList.add('peg');
@@ -265,27 +310,34 @@
                     grid.push(cols);
                     this.#board.appendChild(rowNode);
                 }
+
+                const protectedItems = [
+                    [2, 3],
+                    [this.totalPegs - this.size + 1, this.totalPegs - (this.size * 2) - 1],
+                    [this.totalPegs - 1, this.totalPegs - this.size - 1],
+                ];
+                console.log( protectedItems )
+
+                protectedItems.forEach(siblings => {
+                    const [pegAIndex, pegBIndex] = siblings;
+                    this.getPeg(getPegKey(pegAIndex)).protectedSibling = this.getPeg(getPegKey(pegBIndex));
+                })
+
                 return map;
             }
 
-            placeInitialGears(){
-                let index = 0;
-                for( const [key, peg] of this.#pegs ){
-                    if( index == 0 ){
-                        peg.gear = new Gear(new Player({
-                            name: 'Gold',
-                            color: 'gold',
-                        }), false);
-                    }
-                    if( index == (this.#pegs.size - this.size) ){
-                        peg.gear = new Gear(this.players[0], false);
-                    }
-                    if( index == this.#pegs.size - 1 ){
-                        peg.gear = new Gear(this.players[1], false);
-                    }
+            placeInitialGears() {
+                this.getPeg(getPegKey(0)).gear = new Gear(new Player({
+                    name: 'Gold',
+                    color: 'gold',
+                }), false);
 
-                    index++;
-                }
+                // Now set the players starting point
+                this.players.forEach(player => {
+                    const peg = this.getPeg(getPegKey(player.basePegIndex));
+                    peg.gear = new Gear(player, false);
+                    player.basePeg = peg;
+                })
             }
         }
 
@@ -297,24 +349,30 @@
                 this.#isMovable = isMovable;
             }
 
-            get isMovable(){
+            get isMovable() {
                 return this.#isMovable;
             }
         }
 
         class Peg {
+            index = null;
             key = null;
             adjacent = new Map();
             #gear = null;
             #clockwise = null;
             #protectedSibling;
 
-            constructor(key) {
-                this.key = String.fromCharCode(65 + key);
+            constructor(index) {
+                this.key = getPegKey(index);
+                this.index = index;
             }
 
             get isOccupied() {
                 return this.#gear !== null;
+            }
+
+            get isTurning() {
+                return this.isOccupied && this.#clockwise != null;
             }
 
             set gear(gear) {
@@ -331,17 +389,17 @@
                 return this.#clockwise;
             }
 
-            set protectedSibling(peg){
+            set protectedSibling(peg) {
                 // check before setting to avoid infinite recurrsion
-                if( !this.#protectedSibling ){
+                if (!this.#protectedSibling) {
                     this.#protectedSibling = peg;
                 }
-                if( !peg.#protectedSibling ){
+                if (!peg.#protectedSibling) {
                     peg.protectedSibling = this;
                 }
             }
 
-            get protectedSibling(){
+            get protectedSibling() {
                 return this.#protectedSibling;
             }
 
@@ -367,6 +425,12 @@
                 this.#clockwise = clockwise;
             }
 
+            turnGear() {
+                this.getNeighborGears().forEach(neighbor => {
+                    neighbor.rotateSiblings();
+                });
+            }
+
             stopGear() {
                 this.element().classList.remove("clockwise", "counter-clockwise");
                 this.#clockwise = null;
@@ -380,9 +444,7 @@
                 peg.classList.remove('populated');
                 peg.style.backgroundColor = null;
 
-                this.getNeighborGears().forEach(neighbor => {
-                    neighbor.rotateSublings();
-                });
+                this.turnGear()
             }
 
             toggleGear(player) {
@@ -400,7 +462,7 @@
                     this.gear = new Gear(player);
                     this.startGear(clockwise);
                 }
-                this.rotateSublings();
+                this.rotateSiblings();
                 return advancePlayer;
             }
 
@@ -424,7 +486,7 @@
                 })
             }
 
-            rotateSublings(clockwise = null, visitedPath = new Map()) {
+            rotateSiblings(clockwise = null, visitedPath = new Map()) {
                 if (!this.isOccupied) {
                     // console.log(`No gear on ${this.key}. Skipping...`)
                     return true;
@@ -460,7 +522,7 @@
 
                 let canTurn = true;
                 neighbors.values().forEach((neighborPeg) => {
-                    canTurn = canTurn && neighborPeg.rotateSublings(!clockwise, visitedPath);
+                    canTurn = canTurn && neighborPeg.rotateSiblings(!clockwise, visitedPath);
                 })
 
                 if (!canTurn) {
